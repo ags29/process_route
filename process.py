@@ -65,6 +65,7 @@ class ProcessRoute(object):
     df=df.map(lambda x: (x['FrameID'], x)).partitionBy(self.num_partition, lambda x: hash(str(x))%120).map(lambda x: x[1]).toDF()
     return(df)
     
+  # process and save
   def process_file(self, file_num):
     if file_num not in range(1,8):
       raise ValueError("File number outside range 1-7")
@@ -79,15 +80,12 @@ class ProcessRoute(object):
       varname=[col for col in schema.columns if 'ariable' in col][0]
       ps_schema=schema.sql_dtype.tolist()
       s_vars=[re.sub(' ', '', v) for v in schema[varname].tolist()]
-      
       # Load zip, create DF and save as parquet in S3
       zips = sc.binaryFiles(self.raw_path+"/file%d/*"%(file_num))\
       .mapPartitions(lambda x: self._zip_extract(x))
-      
       if i not in [1,4,7]:
         zips = zips.repartition(70).mapPartitions(self._process_raw_schema).toDF()
       else:
         zips=self._repart(zips).mapPartitions(self._process_raw_schema).toDF()
-
-    zips.write.save(self.raw_path+"/file%d_test/"%(file_num), mode='overwrite')
+    zips.write.save(self.raw_path+"/file%d/"%(file_num), mode='overwrite')
     
